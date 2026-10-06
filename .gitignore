@@ -1,0 +1,11 @@
+# Don't upload installed npm packages
+node_modules/
+
+# Don't upload production build files
+dist/
+
+# Don't upload secret environment variables
+.env
+
+# macOS system file
+.DS_Store
