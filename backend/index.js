@@ -138,6 +138,52 @@ app.get('/documents/:id/url', async (req, res) => {
         });
     }
 });
+
+app.get("/documents/:id/download", async (req, res) => {
+    try {
+        //Find this document in PostgreSQL using its ID
+        const result = await pool.query(
+            `SELECT id, filename, original_name
+            FROM documents
+            WHERE id = $1`,
+            [req.params.id]
+        );
+        // Stop if the document does not exist
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                message: "Document not found",
+            });
+        }
+        // Get the saved document
+        const document = result.rows[0];
+
+        // tell B2 which private file we want
+        const command = new GetObjectCommand({
+            Bucket: process.env.B2_BUCKET,
+            Key: document.filename,
+
+            // Force browser to download the file
+            ResponseContentDisposition: `attachment; filename="${document.original_name}"`,
+        });
+        const url = await getSignedUrl(storage, command, {
+            expiresIn: 300,
+        });
+        // Send the temporary download URL to React
+        res.json({
+            url: url,
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            message: 'Could not download document'
+        });
+    }
+});
+
+
+
+
 app.listen(5000, () => {
     console.log('Server running on port 5000');
 });
