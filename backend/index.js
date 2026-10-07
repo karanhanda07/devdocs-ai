@@ -3,7 +3,9 @@ import cors from 'cors';
 import pool from './db.js';
 import multer from 'multer';
 import { PDFParse } from 'pdf-parse';
-
+import storage from './storage.js';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 const app = express();
 app.use(cors());
@@ -22,16 +24,35 @@ app.get('/', async (req, res) => {
 });
 
 app.post('/upload', upload.single('file'), async (req, res) => {
+
     try {
+        // This protects the original upload buffer for cloud storage.
+        const pdfBufferForParsing = Buffer.from(req.file.buffer);
         // Read the uploaded PDF from memory
+
         const parser = new PDFParse({
-            data: req.file.buffer,
+            data: pdfBufferForParsing,
 
         });
         // Extract text from the PDF
         const result = await parser.getText();
         // Clean up the PDF parser
         await parser.destroy();
+
+        //Create a unique name for the PDF in the cloud storage
+        const storageKey = `${Date.now()}-${req.file.originalname}`;
+
+        //prepare the PDF upload for Backblaze B2
+        const uploadCommand = new PutObjectCommand({
+            Bucket: process.env.B2_BUCKET,
+            Key: storageKey,
+            Body: req.file.buffer,
+            ContentType: req.file.mimetype,
+            ContentLength: req.file.size,
+        });
+
+        await storage.send(uploadCommand);
+
         // Save the uploaded document into PostgreSQL
         const savedDocument = await pool.query(
             // Insert values into the documents table
@@ -40,7 +61,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     RETURNING *`,
             // These values replace $1, $2, and $3
             [
-                req.file.originalname,
+                storageKey,
                 req.file.originalname,
                 result.text,
             ]
@@ -76,6 +97,47 @@ app.get("/documents", async (req, res) => {
         });
     }
 });
+
+app.get('/documents/:id/url', async (req, res) => {
+    try {
+        // Find the document using the ID from the URL
+        const result = await pool.query(
+            `SELECT id, filename, original_name
+            FROM documents 
+            WHERE id = $1`,
+            [req.params.id]
+        );
+        //if that document does not exist
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                message: 'Document not found',
+            });
+        }
+        // get the document we found
+        const document = result.rows[0];
+        // Tell B2 which private file we want to access
+        const command = new GetObjectCommand({
+            Bucket: process.env.B2_BUCKET,
+            // filename contains our B2 storage key
+            Key: document.filename,
+        });
+        // Create a temporary secure URL
+        const url = await getSignedUrl(storage, command, {
+            //link works for 5 minutes
+            expiresIn: 300,
+        });
+        // send the temporary URL back
+        res.json({
+            url: url,
+        });
+    } catch (error) {
+        console.error(error);
+
+        res.status(500).json({
+            message: 'Could not open document',
+        });
+    }
+});
 app.listen(5000, () => {
     console.log('Server running on port 5000');
-})
+});

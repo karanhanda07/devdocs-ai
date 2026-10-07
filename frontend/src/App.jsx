@@ -56,6 +56,20 @@ function App() {
     // Save documents into React state
     setDocuments(data);
   }
+  // Open one saved pdf using a temporary secure URL
+  async function openDocument(id) {
+    const newTab = window.open("", "_blank");
+    // Ask backend to create a temporary URL for this document
+    const response = await fetch(
+      `http://localhost:5000/documents/${id}/url`
+    );
+    //convert backend JSON response into JS
+    const data = await response.json();
+    //send the already-open tab to the PDF URL
+    newTab.location.href = data.url;
+
+
+  }
 
   return (
     <div>
@@ -77,9 +91,12 @@ function App() {
 
       <h2>Saved Documents</h2>
       {documents.map((document) => (
-        <p key={document.id}>
-          {document.original_name}
-        </p>
+        <div key={document.id}>
+          <p> {document.original_name}</p>
+
+
+          <button onClick={() => openDocument(document.id)}>Open</button>
+        </div>
       ))}
       <h2>Extracted Text</h2>
 
