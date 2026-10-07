@@ -56,6 +56,7 @@ function App() {
     // Save documents into React state
     setDocuments(data);
   }
+
   // Open one saved pdf using a temporary secure URL
   async function openDocument(id) {
     const newTab = window.open("", "_blank");
@@ -67,9 +68,20 @@ function App() {
     const data = await response.json();
     //send the already-open tab to the PDF URL
     newTab.location.href = data.url;
-
-
   }
+
+  // download one saved PDF
+  async function downloadDocument(id) {
+    // Ask backend for a temporary download URL
+    const response = await fetch(
+      `http://localhost:5000/documents/${id}/download`
+    );
+    // convert backend response into JS
+    const data = await response.json();
+    // send browser to the secure download URL
+    window.location.href = data.url;
+  }
+
 
   return (
     <div>
@@ -96,8 +108,11 @@ function App() {
 
 
           <button onClick={() => openDocument(document.id)}>Open</button>
+          <button onClick={() => downloadDocument(document.id)}> Download</button>
         </div>
       ))}
+
+
       <h2>Extracted Text</h2>
 
       <p> {pdfText}</p>
