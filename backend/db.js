@@ -1,13 +1,16 @@
+// Load environment variables from .env
+import 'dotenv/config';
+
 import pg from 'pg';
 
 const { Pool } = pg;
 
+// Read database settings from .env
 const pool = new Pool({
-    user: "karanhanda",
-    host: 'localhost',
-    database: 'devdocs_ai',
-    port: 5432,
-
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT,
 });
 
 export default pool;

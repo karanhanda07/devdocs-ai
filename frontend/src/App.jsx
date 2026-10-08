@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import UploadDocument from "./components/UploadDocument";
+import DocumentList from "./components/DocumentList";
 
 function App() {
   const [message, setMessage] = useState("");
@@ -86,38 +88,28 @@ function App() {
   return (
     <div>
       <h1>DevDocs AI</h1>
+
       <p>{message}</p>
-      <input
-        type="file"
-        accept=".pdf"
-        onChange={(event) => {
-          //get the first selected file
-          setFile(event.target.files[0]);
-        }} />
-      <button onClick={handleUpload}>
-        Upload PDF
-      </button>
-      <button onClick={getDocuments}>
-        View Saved Documents
-      </button>
 
-      <h2>Saved Documents</h2>
-      {documents.map((document) => (
-        <div key={document.id}>
-          <p> {document.original_name}</p>
+      <UploadDocument
+        setFile={setFile}
+        handleUpload={handleUpload}
+      />
 
-
-          <button onClick={() => openDocument(document.id)}>Open</button>
-          <button onClick={() => downloadDocument(document.id)}> Download</button>
-        </div>
-      ))}
-
+      {/* Saved documents section */}
+      <DocumentList
+        documents={documents}
+        getDocuments={getDocuments}
+        openDocument={openDocument}
+        downloadDocument={downloadDocument}
+      />
 
       <h2>Extracted Text</h2>
 
-      <p> {pdfText}</p>
+      <p>{pdfText}</p>
     </div>
   );
 }
+
 
 export default App;
