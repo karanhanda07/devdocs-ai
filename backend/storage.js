@@ -10,11 +10,11 @@ const storage = new S3Client({
         secretAccessKey: process.env.B2_APPLICATION_KEY,
     },
 
-    // NEW: Only send AWS checksums when the operation requires them.
+    //  Only send AWS checksums when the operation requires them.
     // This improves compatibility with Backblaze B2.
     requestChecksumCalculation: "WHEN_REQUIRED",
 
-    // NEW: Only validate response checksums when required.
+    //Only validate response checksums when required.
     responseChecksumValidation: "WHEN_REQUIRED",
 });
 
