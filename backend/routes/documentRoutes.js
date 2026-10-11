@@ -1,5 +1,6 @@
 // Import Express so we can create a router
 import express from 'express';
+import { chunkText } from '../utils/chunkText.js';
 
 // Import our PostgreSQL connection
 import pool from '../db.js';
@@ -50,6 +51,11 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         });
         // Extract text from the PDF
         const result = await parser.getText();
+        // NEW: Split extracted PDF text into smaller chunks
+        const chunks = chunkText(result.text);
+
+        // NEW: Temporary check to see how many chunks were created
+        console.log('Number of chunks:', chunks.length);
         // Clean up the PDF parser
         await parser.destroy();
 
@@ -80,6 +86,18 @@ router.post('/upload', upload.single('file'), async (req, res) => {
                 result.text,
             ]
         );
+        // Save each text chunk in PostgreSQL
+        for (let i = 0; i < chunks.length; i++) {
+            await pool.query(
+                `INSERT INTO document_chunks(document_id, chunk_index, chunk_text)
+     VALUES ($1, $2, $3)`,
+                [
+                    savedDocument.rows[0].id,
+                    i,
+                    chunks[i],
+                ]
+            );
+        }
         // Send the saved database row back to React
         res.json({
             message: 'PDF uploaded and saved successfully',
