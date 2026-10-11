@@ -10,7 +10,7 @@ function DocumentList({ documents, getDocuments, openDocument, downloadDocument 
             <h2>Saved Documents</h2>
             {documents.map((document) => (
                 <div key={document.id}>
-                //show the original PDF name
+
                     <p>{document.original_name}</p>
 
                     <button onClick={() => openDocument(document.id)}>Open</button>
