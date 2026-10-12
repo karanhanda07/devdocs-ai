@@ -7,11 +7,11 @@ const openai = new OpenAI({
 });
 
 //  Convert text into an embedding vector
-export async function createEmbedding(text) {
+export async function createEmbeddings(text) {
     const response = await openai.embeddings.create({
         model: "text-embedding-3-small",
         input: text,
     });
 
-    return response.data[0].embedding;
+    return response.data.map((item) => item.embedding);
 }
