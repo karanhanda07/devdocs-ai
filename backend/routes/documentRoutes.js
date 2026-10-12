@@ -1,6 +1,6 @@
 // Import Express so we can create a router
 import express from 'express';
-import { createEmbedding } from '../embeddings.js';
+import { createEmbeddings } from '../embeddings.js';
 import { chunkText } from '../utils/chunkText.js';
 
 // Import our PostgreSQL connection
@@ -89,18 +89,18 @@ router.post('/upload', upload.single('file'), async (req, res) => {
                 result.text,
             ]
         );
-        // Save each text chunk in PostgreSQL
+        // Create embeddings for ALL chunks in one API request
+        const embeddings = await createEmbeddings(chunks);
+
         for (let i = 0; i < chunks.length; i++) {
-            //  Create an embedding for the current chunk
-            const embedding = await createEmbedding(chunks[i]);
             await pool.query(
                 `INSERT INTO document_chunks(document_id, chunk_index, chunk_text, embedding)
- VALUES ($1, $2, $3, $4)`,
+         VALUES ($1, $2, $3, $4)`,
                 [
                     savedDocument.rows[0].id,
                     i,
                     chunks[i],
-                    pgvector.toSql(embedding),
+                    pgvector.toSql(embeddings[i]),
                 ]
             );
         }
@@ -200,7 +200,35 @@ router.get("/documents/:id/download", async (req, res) => {
         });
     }
 });
+//  Search document chunks by meaning
+router.post('/search', async (req, res) => {
+    // Get the user's question from the request body
+    const { question } = req.body;
 
+    // Convert the question into a 1536-number embedding
+    // Create one embedding for the question
+    const questionEmbeddings = await createEmbeddings([question]);
+
+    // Get the first and only embedding
+    const questionEmbedding = questionEmbeddings[0];
+    //  Find the 3 chunks whose embeddings are closest to the question
+    const searchResults = await pool.query(
+        `SELECT id, document_id, chunk_index, chunk_text
+     FROM document_chunks
+     WHERE embedding IS NOT NULL
+     ORDER BY embedding <-> $1
+     LIMIT 3`,
+        [pgvector.toSql(questionEmbedding)]
+    );
+
+    // Temporary test
+    console.log("Question embedding length:", questionEmbedding.length);
+
+    res.json({
+        question,
+        results: searchResults.rows,
+    });
+});
 
 
 
