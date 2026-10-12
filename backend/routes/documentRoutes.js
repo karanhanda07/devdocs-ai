@@ -1,5 +1,6 @@
 // Import Express so we can create a router
 import express from 'express';
+import { createEmbedding } from '../embeddings.js';
 import { chunkText } from '../utils/chunkText.js';
 
 // Import our PostgreSQL connection
@@ -11,6 +12,8 @@ import { PutObjectCommand } from '@aws-sdk/client-s3';
 import storage from '../storage.js';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+// NEW: Convert JavaScript embedding arrays into PostgreSQL vector format
+import pgvector from "pgvector";
 // Create a router for document-related routes
 const router = express.Router();
 
@@ -88,13 +91,16 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         );
         // Save each text chunk in PostgreSQL
         for (let i = 0; i < chunks.length; i++) {
+            //  Create an embedding for the current chunk
+            const embedding = await createEmbedding(chunks[i]);
             await pool.query(
-                `INSERT INTO document_chunks(document_id, chunk_index, chunk_text)
-     VALUES ($1, $2, $3)`,
+                `INSERT INTO document_chunks(document_id, chunk_index, chunk_text, embedding)
+ VALUES ($1, $2, $3, $4)`,
                 [
                     savedDocument.rows[0].id,
                     i,
                     chunks[i],
+                    pgvector.toSql(embedding),
                 ]
             );
         }

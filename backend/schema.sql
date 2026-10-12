@@ -20,4 +20,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 
   -- The actual text inside this chunk
   chunk_text TEXT NOT NULL
+
+  --Stores the AI embedding for this chunk
+  embedding vector(1536)
 );
