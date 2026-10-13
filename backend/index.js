@@ -17,7 +17,8 @@ app.get('/', async (req, res) => {
     res.json({ message: 'DevDocs AI backend is running!', databaseTime: result.rows[0].now, });
 });
 
+const PORT = process.env.PORT || 5000;
 
-app.listen(5000, () => {
-    console.log('Server running on port 5000');
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
