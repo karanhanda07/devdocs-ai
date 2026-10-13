@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import UploadDocument from "./components/UploadDocument";
 import DocumentList from "./components/DocumentList";
+import "./App.css";
 
 function App() {
-  const [message, setMessage] = useState("");
 
 
   // Stores the PDF file selected by the user
@@ -12,42 +12,39 @@ function App() {
   //stores the list of saved documents
   const [documents, setDocuments] = useState([]);
 
-  //Stores the text extracted from the PDF
-  const [pdfText, setPdfText] = useState("");
+  //  Stores the user's question
+  const [question, setQuestion] = useState("");
 
-  useEffect(() => {
-    async function getMessage() {
+  // Stores the AI answer
+  const [answer, setAnswer] = useState("");
+  //  Tracks whether DevDocs AI is currently finding an answer
+  const [isLoading, setIsLoading] = useState(false);
+  // Stores which PDF the user wants to ask questions about
+  const [selectedDocumentId, setSelectedDocumentId] = useState(null);
+  // Controls whether the saved documents section is visible
+  const [showDocuments, setShowDocuments] = useState(false);
+  // Tracks whether a PDF is currently being uploaded and processed
+  const [isUploading, setIsUploading] = useState(false);
 
-      const response = await fetch("http://localhost:5000");
-      const data = await response.json();
-
-      setMessage(data.message);
-    }
-    getMessage();
-
-  }, []);
-
-  // Runs when the upload PDF button is clicked
   async function handleUpload() {
-    //stop if the user has not selected a file
     if (!file) {
       return;
     }
-    // FormData is used to send files to the backend
-    const formData = new FormData();
-    // 'File' must match upload.single('file) in the backend
-    formData.append('file', file);
-    // send the PDF to our Express /upload route
-    const response = await fetch('http://localhost:5000/upload', {
-      method: "POST",
-      body: formData,
-    });
 
-    // Convert backend JSON response into JavaScript
-    const data = await response.json();
+    setIsUploading(true);
 
-    //Save extracted PDF text into React state
-    setPdfText(data.document.extracted_text);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      await fetch("http://localhost:5000/upload", {
+        method: "POST",
+        body: formData,
+      });
+    } finally {
+      // Always stop loading, even if upload fails
+      setIsUploading(false);
+    }
   }
 
   async function getDocuments() {
@@ -83,30 +80,123 @@ function App() {
     // send browser to the secure download URL
     window.location.href = data.url;
   }
+  //  Send the user's question to the backend
+  async function askQuestion() {
 
+    //  Show loading message while we wait
+    setIsLoading(true);
+    // Clear the old answer while a new question is being processed
+    setAnswer("");
 
+    const response = await fetch("http://localhost:5000/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        question: question,
+        documentId: selectedDocumentId,
+      }),
+    });
+
+    const data = await response.json();
+
+    setAnswer(data.answer);
+
+    //  Answer arrived, so stop loading
+    setIsLoading(false);
+  }
+  // Show or hide saved documents
+  async function toggleDocuments() {
+    // Load documents when opening the section
+    if (!showDocuments) {
+      await getDocuments();
+    }
+
+    setShowDocuments(!showDocuments);
+  }
+
+  // Find the document currently selected for AI questions
+  const selectedDocument = documents.find(
+    (document) => document.id === selectedDocumentId
+  );
   return (
     <div>
       <h1>DevDocs AI</h1>
 
-      <p>{message}</p>
+      <section className="card">
+        <h2>Upload Document</h2>
 
-      <UploadDocument
-        setFile={setFile}
-        handleUpload={handleUpload}
-      />
+        <UploadDocument
+          file={file}
+          setFile={setFile}
+          handleUpload={handleUpload}
+          isUploading={isUploading}
+        />
+      </section>
 
-      {/* Saved documents section */}
-      <DocumentList
-        documents={documents}
-        getDocuments={getDocuments}
-        openDocument={openDocument}
-        downloadDocument={downloadDocument}
-      />
+      {/* Show or hide saved documents */}
+      <button onClick={toggleDocuments}>
+        {showDocuments ? "Hide Saved Documents" : "View Saved Documents"}
+      </button>
 
-      <h2>Extracted Text</h2>
+      {/* Only show the list when this section is open */}
+      {showDocuments && (
+        <DocumentList
+          documents={documents}
+          openDocument={openDocument}
+          downloadDocument={downloadDocument}
+          setSelectedDocumentId={setSelectedDocumentId}
+        />
+      )}
+      {/* Ask a question about the uploaded documents */}
+      {/* Ask AI section */}
+      <div>
+        <h2>Ask DevDocs AI</h2>
 
-      <p>{pdfText}</p>
+        {/* Show which document is being searched */}
+        <p>
+          Using: {selectedDocument
+            ? selectedDocument.original_name
+            : "All documents"}
+        </p>
+
+        {/* Let user return to searching all documents */}
+        {selectedDocument && (
+          <button onClick={() => setSelectedDocumentId(null)}>
+            Use All Documents
+          </button>
+        )}
+
+        {/* Question box */}
+        <textarea
+          value={question}
+          onChange={(event) => setQuestion(event.target.value)}
+          placeholder="Ask a question about your documents..."
+          rows="4"
+        />
+
+        {/* Disable Ask when question is empty or AI is already working */}
+        <button
+          onClick={askQuestion}
+          disabled={!question.trim() || isLoading}
+        >
+          {isLoading ? "Thinking..." : "Ask"}
+        </button>
+
+        {/* Only show loading while waiting */}
+        {isLoading && (
+          <p>Searching your documents and preparing an answer...</p>
+        )}
+
+        {/* Only show answer when one exists */}
+        {answer && (
+          <div>
+            <h3>Answer</h3>
+            <p>{answer}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

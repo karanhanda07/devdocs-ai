@@ -2,6 +2,7 @@
 import express from 'express';
 import { createEmbeddings } from '../embeddings.js';
 import { chunkText } from '../utils/chunkText.js';
+import { generateAnswer } from '../answer.js';
 
 // Import our PostgreSQL connection
 import pool from '../db.js';
@@ -202,8 +203,9 @@ router.get("/documents/:id/download", async (req, res) => {
 });
 //  Search document chunks by meaning
 router.post('/search', async (req, res) => {
-    // Get the user's question from the request body
-    const { question } = req.body;
+
+    // Get both the question and selected document ID
+    const { question, documentId } = req.body;
 
     // Convert the question into a 1536-number embedding
     // Create one embedding for the question
@@ -212,21 +214,37 @@ router.post('/search', async (req, res) => {
     // Get the first and only embedding
     const questionEmbedding = questionEmbeddings[0];
     //  Find the 3 chunks whose embeddings are closest to the question
+
+    // Search one document if selected, otherwise search all documents
     const searchResults = await pool.query(
         `SELECT id, document_id, chunk_index, chunk_text
      FROM document_chunks
      WHERE embedding IS NOT NULL
-     ORDER BY embedding <-> $1
+       AND ($1::integer IS NULL OR document_id = $1)
+     ORDER BY embedding <=> $2
      LIMIT 3`,
-        [pgvector.toSql(questionEmbedding)]
+        [
+            documentId || null,
+            pgvector.toSql(questionEmbedding),
+        ]
     );
 
     // Temporary test
     console.log("Question embedding length:", questionEmbedding.length);
 
+
+    // Combine the retrieved chunk text into one context string
+    const context = searchResults.rows
+        .map((row) => row.chunk_text)
+        .join("\n\n");
+
+    //  Ask Luna to create the final answer
+    const answer = await generateAnswer(question, context);
+
+    //  Send the final AI answer back to the frontend/client
     res.json({
         question,
-        results: searchResults.rows,
+        answer,
     });
 });
 

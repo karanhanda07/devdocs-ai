@@ -1,20 +1,28 @@
 // Component that shows saved documents
-function DocumentList({ documents, getDocuments, openDocument, downloadDocument }) {
+function DocumentList({ documents, openDocument, downloadDocument, setSelectedDocumentId, }) {
     return (
         <div>
 
 
-            <button onClick={getDocuments}>
-                View Saved Documents
-            </button>
             <h2>Saved Documents</h2>
             {documents.map((document) => (
-                <div key={document.id}>
+                <div key={document.id} className="document-item">
 
                     <p>{document.original_name}</p>
 
-                    <button onClick={() => openDocument(document.id)}>Open</button>
-                    <button onClick={() => downloadDocument(document.id)}>Download</button>
+                    <div className="document-actions">
+                        <button onClick={() => openDocument(document.id)}>
+                            Open
+                        </button>
+
+                        <button onClick={() => downloadDocument(document.id)}>
+                            Download
+                        </button>
+
+                        <button onClick={() => setSelectedDocumentId(document.id)}>
+                            Use for AI
+                        </button>
+                    </div>
                 </div>
             ))}
 
