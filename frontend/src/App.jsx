@@ -1,8 +1,8 @@
-import { useState } from "react";
-import UploadDocument from "./components/UploadDocument";
-import DocumentList from "./components/DocumentList";
+import { useState, useCallback } from "react";
+import { Routes, Route, Link } from "react-router-dom";
+import DocumentsPage from "./pages/DocumentsPage";
 import "./App.css";
-
+import UploadDocument from "./components/UploadDocument";
 function App() {
 
 
@@ -21,10 +21,11 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   // Stores which PDF the user wants to ask questions about
   const [selectedDocumentId, setSelectedDocumentId] = useState(null);
-  // Controls whether the saved documents section is visible
-  const [showDocuments, setShowDocuments] = useState(false);
+
   // Tracks whether a PDF is currently being uploaded and processed
   const [isUploading, setIsUploading] = useState(false);
+  // Shows upload success/error feedback
+  const [uploadMessage, setUploadMessage] = useState("");
 
   async function handleUpload() {
     if (!file) {
@@ -32,29 +33,45 @@ function App() {
     }
 
     setIsUploading(true);
+    setUploadMessage("");
 
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      await fetch("http://localhost:5000/upload", {
+      const response = await fetch("http://localhost:5000/upload", {
         method: "POST",
         body: formData,
       });
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      // Clear the selected file after successful upload
+      setFile(null);
+
+      // Show confirmation
+      setUploadMessage("PDF uploaded successfully.");
+      // Clear the success message after 3 seconds
+      setTimeout(() => {
+        setUploadMessage("");
+      }, 3000);
+    } catch (error) {
+      console.error(error);
+      setUploadMessage("Could not upload PDF.");
     } finally {
-      // Always stop loading, even if upload fails
       setIsUploading(false);
     }
   }
-
-  async function getDocuments() {
+  // Loads all saved documents from the backend
+  const getDocuments = useCallback(async () => {
     const response = await fetch("http://localhost:5000/documents");
 
-    // Convert JSON response into JavaScript
     const data = await response.json();
-    // Save documents into React state
+
     setDocuments(data);
-  }
+  }, []);
 
   // Open one saved pdf using a temporary secure URL
   async function openDocument(id) {
@@ -80,6 +97,31 @@ function App() {
     // send browser to the secure download URL
     window.location.href = data.url;
   }
+  // NEW: Delete one saved document
+  async function deleteDocument(id) {
+    // Ask the user to confirm before deleting
+
+
+
+    const response = await fetch(
+      `http://localhost:5000/documents/${id}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    // Convert backend response into JavaScript
+    const data = await response.json();
+
+    // If delete failed, stop here
+    if (!response.ok) {
+      console.error(data.message);
+      return;
+    }
+
+    // Reload the documents list after deletion
+    await getDocuments();
+  }
   //  Send the user's question to the backend
   async function askQuestion() {
 
@@ -102,18 +144,9 @@ function App() {
     const data = await response.json();
 
     setAnswer(data.answer);
-
+    setQuestion("");
     //  Answer arrived, so stop loading
     setIsLoading(false);
-  }
-  // Show or hide saved documents
-  async function toggleDocuments() {
-    // Load documents when opening the section
-    if (!showDocuments) {
-      await getDocuments();
-    }
-
-    setShowDocuments(!showDocuments);
   }
 
   // Find the document currently selected for AI questions
@@ -121,85 +154,121 @@ function App() {
     (document) => document.id === selectedDocumentId
   );
   return (
-    <div>
-      <h1>DevDocs AI</h1>
+    <Routes>
 
-      <section className="card">
-        <h2>Upload Document</h2>
 
-        <UploadDocument
-          file={file}
-          setFile={setFile}
-          handleUpload={handleUpload}
-          isUploading={isUploading}
-        />
-      </section>
+      <Route
+        path="/documents"
+        element={
+          <DocumentsPage
+            documents={documents}
+            getDocuments={getDocuments}
+            openDocument={openDocument}
+            downloadDocument={downloadDocument}
+            setSelectedDocumentId={setSelectedDocumentId}
+            deleteDocument={deleteDocument}
+          />
+        }
+      />
 
-      {/* Show or hide saved documents */}
-      <button onClick={toggleDocuments}>
-        {showDocuments ? "Hide Saved Documents" : "View Saved Documents"}
-      </button>
+      {/* Main DevDocs AI page */}
+      <Route
+        path="/"
+        element={
+          <div className="app">
 
-      {/* Only show the list when this section is open */}
-      {showDocuments && (
-        <DocumentList
-          documents={documents}
-          openDocument={openDocument}
-          downloadDocument={downloadDocument}
-          setSelectedDocumentId={setSelectedDocumentId}
-        />
-      )}
-      {/* Ask a question about the uploaded documents */}
-      {/* Ask AI section */}
-      <div>
-        <h2>Ask DevDocs AI</h2>
+            {/* Top navigation */}
+            <header className="topbar">
+              <h1>DevDocs AI</h1>
 
-        {/* Show which document is being searched */}
-        <p>
-          Using: {selectedDocument
-            ? selectedDocument.original_name
-            : "All documents"}
-        </p>
+              <div className="topbar-actions">
 
-        {/* Let user return to searching all documents */}
-        {selectedDocument && (
-          <button onClick={() => setSelectedDocumentId(null)}>
-            Use All Documents
-          </button>
-        )}
+                <Link to="/documents">
+                  Documents
+                </Link>
+              </div>
+            </header>
 
-        {/* Question box */}
-        <textarea
-          value={question}
-          onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Ask a question about your documents..."
-          rows="4"
-        />
+            {/* Main AI area */}
+            <main className="hero">
+              <p className="eyebrow">AI DOCUMENT ASSISTANT</p>
 
-        {/* Disable Ask when question is empty or AI is already working */}
-        <button
-          onClick={askQuestion}
-          disabled={!question.trim() || isLoading}
-        >
-          {isLoading ? "Thinking..." : "Ask"}
-        </button>
+              <h2>Ask your documents anything.</h2>
 
-        {/* Only show loading while waiting */}
-        {isLoading && (
-          <p>Searching your documents and preparing an answer...</p>
-        )}
+              <p className="hero-subtitle">
+                Upload PDFs, search their content, and get answers grounded in your documents.
+              </p>
 
-        {/* Only show answer when one exists */}
-        {answer && (
-          <div>
-            <h3>Answer</h3>
-            <p>{answer}</p>
+              {/* Question box */}
+              <div className="ask-box">
+                <textarea
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  placeholder="Ask a question about your documents..."
+                  rows="3"
+                />
+
+                <div className="ask-footer">
+
+                  {/* Shows which document AI will search */}
+                  <div className="source-info">
+                    <span className="source-label">Source</span>
+
+                    <span className="source-name">
+                      {selectedDocument
+                        ? selectedDocument.original_name
+                        : "All documents"}
+                    </span>
+
+                    {/* Reset back to all documents */}
+                    {selectedDocument && (
+                      <button
+                        className="source-clear"
+                        onClick={() => setSelectedDocumentId(null)}
+                        title="Use all documents"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Sends question to backend */}
+                  <button
+                    onClick={askQuestion}
+                    disabled={!question.trim() || isLoading}
+                  >
+                    {isLoading ? "Thinking..." : "Ask"}
+                  </button>
+
+                </div>
+              </div>
+
+              {/* AI answer */}
+              {answer && (
+                <div className="answer-box">
+                  <h3>Answer</h3>
+                  <p>{answer}</p>
+                </div>
+              )}
+            </main>
+
+            {/* Upload area */}
+            <section className="upload-panel">
+              <UploadDocument
+                file={file}
+                setFile={setFile}
+                handleUpload={handleUpload}
+                isUploading={isUploading}
+                uploadMessage={uploadMessage}
+              />
+            </section>
+
           </div>
-        )}
-      </div>
-    </div>
+        }
+      />
+
+    </Routes>
   );
 }
-
 
 export default App;
