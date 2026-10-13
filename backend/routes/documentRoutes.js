@@ -9,9 +9,13 @@ import pool from '../db.js';
 
 import multer from 'multer';
 import { PDFParse } from 'pdf-parse';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+    PutObjectCommand,
+    GetObjectCommand,
+    DeleteObjectCommand,
+    ListObjectVersionsCommand,
+} from '@aws-sdk/client-s3';
 import storage from '../storage.js';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 // NEW: Convert JavaScript embedding arrays into PostgreSQL vector format
 import pgvector from "pgvector";
@@ -58,8 +62,8 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         // NEW: Split extracted PDF text into smaller chunks
         const chunks = chunkText(result.text);
 
-        // NEW: Temporary check to see how many chunks were created
-        console.log('Number of chunks:', chunks.length);
+
+
         // Clean up the PDF parser
         await parser.destroy();
 
@@ -201,6 +205,76 @@ router.get("/documents/:id/download", async (req, res) => {
         });
     }
 });
+// Permanently delete one document
+router.delete('/documents/:id', async (req, res) => {
+    try {
+        // Find the document first so we know its B2 storage key
+        const result = await pool.query(
+            `SELECT id, filename, original_name
+             FROM documents
+             WHERE id = $1`,
+            [req.params.id]
+        );
+
+        // Stop if the document does not exist
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                message: 'Document not found',
+            });
+        }
+
+        const document = result.rows[0];
+
+        // Get every B2 version and delete marker for this exact file
+        const versionsResult = await storage.send(
+            new ListObjectVersionsCommand({
+                Bucket: process.env.B2_BUCKET,
+                Prefix: document.filename,
+            })
+        );
+
+        // Combine actual file versions and delete markers
+        const allVersions = [
+            ...(versionsResult.Versions || []),
+            ...(versionsResult.DeleteMarkers || []),
+        ];
+
+        // Only keep versions belonging to this exact storage key
+        const matchingVersions = allVersions.filter(
+            (version) => version.Key === document.filename
+        );
+
+        // Permanently delete every version
+        for (const version of matchingVersions) {
+            await storage.send(
+                new DeleteObjectCommand({
+                    Bucket: process.env.B2_BUCKET,
+                    Key: document.filename,
+                    VersionId: version.VersionId,
+                })
+            );
+        }
+
+        // Delete PostgreSQL row
+        // document_chunks are removed automatically by ON DELETE CASCADE
+        await pool.query(
+            `DELETE FROM documents
+             WHERE id = $1`,
+            [req.params.id]
+        );
+
+        res.json({
+            message: 'Document permanently deleted',
+        });
+
+    } catch (error) {
+        console.error(error);
+
+        res.status(500).json({
+            message: 'Could not delete document',
+        });
+    }
+});
 //  Search document chunks by meaning
 router.post('/search', async (req, res) => {
 
@@ -229,8 +303,6 @@ router.post('/search', async (req, res) => {
         ]
     );
 
-    // Temporary test
-    console.log("Question embedding length:", questionEmbedding.length);
 
 
     // Combine the retrieved chunk text into one context string
