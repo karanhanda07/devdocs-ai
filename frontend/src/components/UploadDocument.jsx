@@ -1,11 +1,21 @@
 
-
+import { useEffect, useRef } from "react";
 // Component for choosing and uploading a PDF
-function UploadDocument({ file, setFile, handleUpload, isUploading, }) {
+function UploadDocument({ file, setFile, handleUpload, isUploading, uploadMessage, }) {
+    // Gives us direct access to the real file input
+    const fileInputRef = useRef(null);
+
+    // Clear the visible filename after a successful upload
+    useEffect(() => {
+        if (!file && fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    }, [file]);
     return (
         <div>
             {/* Choose a PDF from the computer */}
             <input
+                ref={fileInputRef}
                 type="file"
                 accept=".pdf"
                 onChange={(event) => {
@@ -18,8 +28,15 @@ function UploadDocument({ file, setFile, handleUpload, isUploading, }) {
             >
                 {isUploading ? "Uploading..." : "Upload PDF"}
             </button>
+
             {isUploading && (
                 <p>Uploading and processing document...</p>
+            )}
+
+            {uploadMessage && (
+                <p className="upload-message">
+                    {uploadMessage}
+                </p>
             )}
         </div>
     );
