@@ -1,7 +1,7 @@
 
 
 // Component for choosing and uploading a PDF
-function UploadDocument({ setFile, handleUpload }) {
+function UploadDocument({ file, setFile, handleUpload, isUploading, }) {
     return (
         <div>
             {/* Choose a PDF from the computer */}
@@ -12,11 +12,15 @@ function UploadDocument({ setFile, handleUpload }) {
                     setFile(event.target.files[0]);
                 }}
             />
-
-            {/* Upload the selected PDF */}
-            <button onClick={handleUpload}>
-                Upload PDF
+            <button
+                onClick={handleUpload}
+                disabled={!file || isUploading}
+            >
+                {isUploading ? "Uploading..." : "Upload PDF"}
             </button>
+            {isUploading && (
+                <p>Uploading and processing document...</p>
+            )}
         </div>
     );
 }
