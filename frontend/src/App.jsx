@@ -1,3 +1,4 @@
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 import { useState, useCallback } from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import DocumentsPage from "./pages/DocumentsPage";
@@ -39,7 +40,7 @@ function App() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("http://localhost:5000/upload", {
+      const response = await fetch(`${API_URL}/upload`, {
         method: "POST",
         body: formData,
       });
@@ -66,7 +67,7 @@ function App() {
   }
   // Loads all saved documents from the backend
   const getDocuments = useCallback(async () => {
-    const response = await fetch("http://localhost:5000/documents");
+    const response = await fetch(`${API_URL}/documents`);
 
     const data = await response.json();
 
@@ -78,7 +79,7 @@ function App() {
     const newTab = window.open("", "_blank");
     // Ask backend to create a temporary URL for this document
     const response = await fetch(
-      `http://localhost:5000/documents/${id}/url`
+      `${API_URL}/documents/${id}/url`
     );
     //convert backend JSON response into JS
     const data = await response.json();
@@ -90,7 +91,7 @@ function App() {
   async function downloadDocument(id) {
     // Ask backend for a temporary download URL
     const response = await fetch(
-      `http://localhost:5000/documents/${id}/download`
+      `${API_URL}/documents/${id}/download`
     );
     // convert backend response into JS
     const data = await response.json();
@@ -104,7 +105,7 @@ function App() {
 
 
     const response = await fetch(
-      `http://localhost:5000/documents/${id}`,
+      `${API_URL}/documents/${id}`,
       {
         method: "DELETE",
       }
@@ -130,7 +131,7 @@ function App() {
     // Clear the old answer while a new question is being processed
     setAnswer("");
 
-    const response = await fetch("http://localhost:5000/search", {
+    const response = await fetch(`${API_URL}/search`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
